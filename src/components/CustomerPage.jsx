@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import React from 'react';
+import { useState, useEffect } from 'react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { ShoppingCart, Plus, Minus, Send, Utensils, CheckCircle, Lock, AlertTriangle } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { useLocation } from 'react-router-dom';
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, getDoc, orderBy } from 'firebase/firestore';
 
 // MENU_ITEMS is now fetched from Firestore
 
 export default function CustomerPage() {
   const { tableId } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const queryParams = new URLSearchParams(location.search);
   const urlToken = queryParams.get('token');
 
@@ -20,6 +21,35 @@ export default function CustomerPage() {
   const [orderId, setOrderId] = useState(localStorage.getItem('my_order_id') || null);
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
   const [trackInput, setTrackInput] = useState('');
+  const [tableName, setTableName] = useState('');
+  const [customerName] = useState(localStorage.getItem('customer_name') || '');
+  const [customerPhone] = useState(localStorage.getItem('customer_phone') || '');
+  const [settings, setSettings] = useState({
+    restaurantName: 'RestoModern',
+    logoUrl: ''
+  });
+
+  // Fetch Table Name & Settings
+  useEffect(() => {
+    const fetchTable = async () => {
+       const docRef = doc(db, 'tables', tableId);
+       const docSnap = await getDoc(docRef);
+       if (docSnap.exists()) {
+         setTableName(docSnap.data().name);
+       } else {
+         setTableName(tableId);
+       }
+    };
+    fetchTable();
+
+    const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'restaurant'), (docSnap) => {
+      if (docSnap.exists()) {
+        setSettings(docSnap.data());
+      }
+    });
+
+    return () => unsubscribeSettings();
+  }, [tableId]);
 
   // Fetch Menu from Firestore
   useEffect(() => {
@@ -82,6 +112,8 @@ export default function CustomerPage() {
         items: cart,
         total,
         status: 'pending',
+        customerName,
+        customerPhone,
         createdAt: serverTimestamp()
       });
       setOrderId(numericId);
@@ -106,7 +138,10 @@ export default function CustomerPage() {
   return (
     <div className="container animate-fade">
       <nav>
-        <div className="logo" onClick={() => window.location.href='/'} style={{ cursor: 'pointer' }}>RestoModern</div>
+        <div className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+          {settings.logoUrl && <img src={settings.logoUrl} alt="Logo" style={{ height: '30px', borderRadius: '4px' }} />}
+          {settings.restaurantName}
+        </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button 
             onClick={() => setIsTrackingModalOpen(true)}
@@ -116,13 +151,16 @@ export default function CustomerPage() {
             Cek Pesanan
           </button>
           <div className="table-badge glass-card" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}>
-            Meja #{tableId}
+            {tableName || `Meja #${tableId}`}
           </div>
         </div>
       </nav>
 
       <header style={{ marginBottom: '2.5rem' }}>
-        <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>Selamat Datang!</h1>
+        <div className="welcome-badge">
+           <span>Selamat Datang, <strong>{customerName || 'Pelanggan'}</strong>!</span>
+        </div>
+        <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>Menu Restoran</h1>
         <p style={{ color: 'var(--text-muted)' }}>Silakan pilih menu favorit Anda hari ini.</p>
       </header>
 
@@ -167,33 +205,30 @@ export default function CustomerPage() {
       </div>
 
       {cart.length > 0 && (
-        <div className="glass-card" style={{ position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)', width: '90%', maxWidth: '500px', padding: '1.5rem', zIndex: 100 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div>
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Total Pesanan</p>
-              <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Rp {total.toLocaleString()}</p>
-            </div>
-            <button 
-              onClick={handlePlaceOrder}
-              disabled={isOrdering}
-              className="btn-primary"
-            >
-              {isOrdering ? 'Memproses...' : (
-                <>
-                  <Send size={18} /> Pesan Sekarang
-                </>
-              )}
-            </button>
+        <div className="fixed-checkout-bar">
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Pesanan</span>
+            <span style={{ fontSize: '1.2rem', fontWeight: '800', color: 'white' }}>
+              Rp {total.toLocaleString()}
+            </span>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-            {cart.map(item => (
-              <div key={item.id} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem', padding: '0.3rem 0.6rem', whiteSpace: 'nowrap', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                {item.name} x{item.qty}
-                <Plus size={14} style={{ cursor: 'pointer' }} onClick={() => addToCart(item)} />
-                <Minus size={14} style={{ cursor: 'pointer' }} onClick={() => removeFromCart(item.id)} />
-              </div>
-            ))}
-          </div>
+          
+          <button 
+            onClick={handlePlaceOrder}
+            disabled={isOrdering}
+            className="btn-primary" 
+            style={{ 
+              padding: '0.8rem 1.5rem', 
+              borderRadius: '1rem', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.8rem',
+              boxShadow: '0 8px 25px rgba(255, 107, 107, 0.3)',
+              fontSize: '0.9rem'
+            }}
+          >
+            <Send size={18} /> {isOrdering ? 'Memproses...' : 'Pesan Sekarang'}
+          </button>
         </div>
       )}
       {/* TRACKING MODAL */}

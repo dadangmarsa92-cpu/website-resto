@@ -99,6 +99,21 @@ nav {
   align-items: center;
   padding: 1.5rem 0;
   margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+header .flex-tabs {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+header .flex-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .logo {
@@ -183,5 +198,144 @@ nav {
 @media (max-width: 768px) {
   .grid-menu {
     grid-template-columns: 1fr;
+    padding-bottom: 120px;
+  }
+  
+  .container {
+    padding: 0.8rem;
+  }
+  
+  h1 {
+    font-size: 1.8rem !important;
+  }
+}
+
+/* Financial Stat Cards */
+.stat-card {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Printing logic */
+#print-section {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  #print-section, #print-section * {
+    visibility: visible;
+  }
+  
+  #print-section {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    color: black;
+    background: white;
+    padding: 10px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    margin: 0;
+  }
+}
+
+/* Receipt Widths */
+.receipt-57mm { width: 215px; }
+.receipt-58mm { width: 220px; }
+.receipt-80mm { width: 300px; }
+.receipt-landscape { transform: rotate(-90deg); transform-origin: top left; }
+
+/* Customer Improvements */
+.welcome-badge {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  padding: 0.8rem 1.5rem;
+  border-radius: 2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 1rem;
+  margin-bottom: 2rem;
+  color: var(--primary);
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  animation: fadeInDown 0.6s ease-out;
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fixed-checkout-bar {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 500px;
+  background: rgba(18, 18, 18, 0.85);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1.5rem;
+  padding: 1.2rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 1000;
+  box-shadow: 0 15px 50px rgba(0,0,0,0.5);
+  animation: slideInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInUp {
+  from { transform: translate(-50%, 150%); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+.grid-menu {
+  padding-bottom: 150px !important; /* Ensure content is visible above fixed bar */
+}
+
+@media (max-width: 600px) {
+  .fixed-checkout-bar {
+    width: 92%;
+    bottom: 1.5rem;
+    padding: 1rem 1.5rem;
+    border-radius: 1.2rem;
+  }
+  
+  .welcome-badge {
+    font-size: 0.85rem;
+    padding: 0.6rem 1.2rem;
   }
 }

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, query, onSnapshot, updateDoc, doc, orderBy, deleteDoc, setDoc, serverTimestamp, addDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, updateDoc, doc, orderBy, deleteDoc, setDoc, serverTimestamp, addDoc, deleteField } from 'firebase/firestore';
 import { 
   ShoppingBag, 
   User, 
@@ -16,15 +17,53 @@ import {
   Save, 
   X, 
   UtensilsCrossed, 
-  Search 
+  Search,
+  BarChart3,
+  FileText,
+  Printer,
+  TrendingUp,
+  Users
 } from 'lucide-react';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  AreaChart,
+  Area
+} from 'recharts';
 
 export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [tables, setTables] = useState([]);
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab ] = useState('orders'); // 'orders', 'tables', 'menu'
+  const [activeTab, setActiveTab ] = useState('orders'); // 'orders', 'tables_status', 'tables_config', 'menu', 'reports', 'settings'
+  const [settings, setSettings] = useState({
+    restaurantName: 'RestoModern',
+    address: 'Jl. Raya No. 123',
+    logoUrl: '',
+    printSize: '58x40',
+    printOrientation: 'portrait'
+  });
+  
+  // Reports State
+  const [reportStats, setReportStats] = useState({
+    daily: 0,
+    weekly: 0,
+    monthly: 0,
+    yearly: 0,
+    popularItems: [],
+    chartData: []
+  });
+  const [graphType, setGraphType] = useState('bar'); // 'bar', 'line', 'area'
+  const [reportFilter, setReportFilter] = useState('daily'); // 'daily', 'monthly'
   
   // Menu Form State
   const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
@@ -52,12 +91,97 @@ export default function AdminDashboard() {
       setLoading(false);
     });
 
+    const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'restaurant'), (docSnap) => {
+      if (docSnap.exists()) {
+        setSettings(prev => ({ ...prev, ...docSnap.data() }));
+      }
+    });
+
     return () => {
       unsubscribeOrders();
       unsubscribeTables();
       unsubscribeMenu();
+      unsubscribeSettings();
     };
   }, []);
+
+  const [printingOrderId, setPrintingOrderId] = useState(null);
+
+  // Update Statistics whenever orders change
+  useEffect(() => {
+    if (orders.length === 0) return;
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const lastYear = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+
+    let daily = 0, weekly = 0, monthly = 0, yearly = 0;
+    const popularCount = {};
+
+    orders.forEach(order => {
+      const orderDate = order.createdAt?.toDate() || new Date();
+      const orderTotal = order.total || 0;
+
+      if (orderDate >= today) daily += orderTotal;
+      if (orderDate >= last7Days) weekly += orderTotal;
+      if (orderDate >= last30Days) monthly += orderTotal;
+      if (orderDate >= lastYear) yearly += orderTotal;
+
+      // Popular items
+      if (order.items) {
+        order.items.forEach(item => {
+          popularCount[item.name] = (popularCount[item.name] || 0) + item.qty;
+        });
+      }
+    });
+
+    const popularSorted = Object.entries(popularCount)
+      .map(([name, qty]) => ({ name, qty }))
+      .sort((a,b) => b.qty - a.qty);
+
+    // Process Chart Data based on filter
+    const chartMap = {};
+    orders.forEach(order => {
+      const date = order.createdAt?.toDate() || new Date();
+      let key;
+      if (reportFilter === 'daily') {
+        key = date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+      } else {
+        key = date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      }
+      
+      if (!chartMap[key]) chartMap[key] = { name: key, omzet: 0, pengunjung: new Set() };
+      chartMap[key].omzet += order.total || 0;
+      chartMap[key].pengunjung.add(order.customerPhone || order.id);
+    });
+
+    const chartData = Object.values(chartMap).map(item => ({
+      ...item,
+      pengunjung: item.pengunjung.size
+    })).slice(-10); // Last 10 points
+
+    setReportStats({
+      daily,
+      weekly,
+      monthly,
+      yearly,
+      popularItems: popularSorted,
+      chartData
+    });
+  }, [orders, reportFilter]);
+
+  const handleUpdateSettings = async (e) => {
+    e.preventDefault();
+    try {
+      await setDoc(doc(db, 'settings', 'restaurant'), settings);
+      alert("Pengaturan disimpan!");
+    } catch (error) {
+      console.error("Error updating settings: ", error);
+      alert("Gagal menyimpan pengaturan.");
+    }
+  };
 
   // --- Menu Management Logic ---
   const handleSaveMenu = async (e) => {
@@ -94,7 +218,10 @@ export default function AdminDashboard() {
     if (window.confirm(`Yakin ingin mengosongkan Meja/Ruangan ini?`)) {
       try {
         await updateDoc(doc(db, 'tables', tableId), {
-          status: 'available'
+          status: 'available',
+          customerName: deleteField(),
+          customerPhone: deleteField(),
+          occupiedAt: deleteField()
         });
       } catch (error) {
         console.error("Error resetting table: ", error);
@@ -146,34 +273,48 @@ export default function AdminDashboard() {
 
       <header style={{ marginBottom: '2.5rem' }}>
         <h1 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Manajemen Restoran</h1>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <div className="flex-tabs">
           <button 
             onClick={() => setActiveTab('orders')}
             className={activeTab === 'orders' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '0.6rem 1.2rem' }}
+            style={{ padding: '0.6rem 1.2rem', whiteSpace: 'nowrap' }}
           >
             <UtensilsCrossed size={18} /> Pesanan
           </button>
           <button 
             onClick={() => setActiveTab('tables_status')}
             className={activeTab === 'tables_status' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '0.6rem 1.2rem' }}
+            style={{ padding: '0.6rem 1.2rem', whiteSpace: 'nowrap' }}
           >
             <LayoutDashboard size={18} /> Status Meja
           </button>
           <button 
             onClick={() => setActiveTab('tables_config')}
             className={activeTab === 'tables_config' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '0.6rem 1.2rem' }}
+            style={{ padding: '0.6rem 1.2rem', whiteSpace: 'nowrap' }}
           >
             <Settings size={18} /> Pengaturan Meja
           </button>
           <button 
             onClick={() => setActiveTab('menu')}
             className={activeTab === 'menu' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '0.6rem 1.2rem' }}
+            style={{ padding: '0.6rem 1.2rem', whiteSpace: 'nowrap' }}
           >
             <ShoppingBag size={18} /> Daftar Menu
+          </button>
+          <button 
+            onClick={() => setActiveTab('reports')}
+            className={activeTab === 'reports' ? 'btn-primary' : 'btn-secondary'}
+            style={{ padding: '0.6rem 1.2rem', whiteSpace: 'nowrap' }}
+          >
+            <BarChart3 size={18} /> Laporan
+          </button>
+          <button 
+            onClick={() => setActiveTab('settings')}
+            className={activeTab === 'settings' ? 'btn-primary' : 'btn-secondary'}
+            style={{ padding: '0.6rem 1.2rem', whiteSpace: 'nowrap' }}
+          >
+            <Settings size={18} /> Pengaturan Toko
           </button>
         </div>
       </header>
@@ -252,6 +393,16 @@ export default function AdminDashboard() {
                     <CheckCircle2 size={16} /> Sajikan
                   </button>
                 )}
+                <button 
+                  onClick={() => {
+                    setPrintingOrderId(order.id);
+                    setTimeout(() => window.print(), 100);
+                  }} 
+                  className="btn-secondary" 
+                  style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}
+                >
+                  <Printer size={16} /> Struk
+                </button>
                 <button onClick={() => deleteOrder(order.id)} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0.5rem' }}>
                   <Trash2 size={18} />
                 </button>
@@ -271,10 +422,22 @@ export default function AdminDashboard() {
                   <h3 style={{ fontSize: '1.3rem', fontWeight: 'bold' }}>{table.name}</h3>
                 </div>
 
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <p style={{ fontSize: '0.85rem', color: isOccupied ? '#ef4444' : '#10b981', fontWeight: 'bold' }}>
+                <div style={{ marginBottom: '1rem' }}>
+                  <p style={{ fontSize: '0.85rem', color: isOccupied ? '#ef4444' : '#10b981', fontWeight: 'bold', marginBottom: '0.5rem' }}>
                     {isOccupied ? 'TERISI / SEDANG MEMESAN' : 'KOSONG / SIAP'}
                   </p>
+                  {isOccupied && (
+                    <div style={{ fontSize: '0.8rem', padding: '0.8rem', background: 'rgba(255,255,255,0.03)', borderRadius: '0.5rem' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                          <User size={14} style={{ color: 'var(--text-muted)' }} />
+                          <span>{table.customerName || 'Anonim'}</span>
+                       </div>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <FileText size={14} style={{ color: 'var(--text-muted)' }} />
+                          <span>{table.customerPhone || '-'}</span>
+                       </div>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -360,7 +523,7 @@ export default function AdminDashboard() {
             </table>
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'menu' ? (
         /* MENU MANAGEMENT TAB */
         <div className="animate-fade">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
@@ -473,7 +636,244 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
+      ) : activeTab === 'reports' ? (
+        /* REPORTS TAB */
+        <div className="animate-fade">
+           <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>Laporan Keuangan & Produk</h2>
+           
+           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
+              <div className="glass-card stat-card">
+                 <span className="stat-label">Omzet Hari Ini</span>
+                 <span className="stat-value">Rp {reportStats.daily.toLocaleString()}</span>
+              </div>
+              <div className="glass-card stat-card">
+                 <span className="stat-label">Omzet Minggu Ini</span>
+                 <span className="stat-value">Rp {reportStats.weekly.toLocaleString()}</span>
+              </div>
+              <div className="glass-card stat-card">
+                 <span className="stat-label">Omzet Bulan Ini</span>
+                 <span className="stat-value">Rp {reportStats.monthly.toLocaleString()}</span>
+              </div>
+              <div className="glass-card stat-card">
+                 <span className="stat-label">Omzet Tahun Ini</span>
+                 <span className="stat-value">Rp {reportStats.yearly.toLocaleString()}</span>
+              </div>
+           </div>
+
+           <div className="glass-card" style={{ padding: '2rem', marginBottom: '2.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+                 <div>
+                    <h3 style={{ marginBottom: '0.5rem' }}>Grafik Kunjungan & Omzet</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Melihat tren transaksi di restoran Anda</p>
+                 </div>
+                 <div style={{ display: 'flex', gap: '0.8rem' }}>
+                    <select 
+                       className="input-field" 
+                       style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', width: 'auto' }}
+                       value={reportFilter}
+                       onChange={(e) => setReportFilter(e.target.value)}
+                    >
+                       <option value="daily">Harian</option>
+                       <option value="monthly">Bulanan</option>
+                    </select>
+                    <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '0.6rem', padding: '0.2rem', display: 'flex', gap: '0.2rem' }}>
+                       <button 
+                          onClick={() => setGraphType('bar')}
+                          className={graphType === 'bar' ? 'btn-primary' : ''}
+                          style={{ padding: '0.3rem 0.8rem', borderRadius: '0.4rem', fontSize: '0.75rem', background: graphType === 'bar' ? '' : 'transparent' }}
+                       >Batang</button>
+                       <button 
+                          onClick={() => setGraphType('line')}
+                          className={graphType === 'line' ? 'btn-primary' : ''}
+                          style={{ padding: '0.3rem 0.8rem', borderRadius: '0.4rem', fontSize: '0.75rem', background: graphType === 'line' ? '' : 'transparent' }}
+                       >Garis</button>
+                    </div>
+                 </div>
+              </div>
+
+              <div style={{ width: '100%', height: 300 }}>
+                 <ResponsiveContainer>
+                    {graphType === 'bar' ? (
+                       <BarChart data={reportStats.chartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                          <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
+                          <YAxis stroke="var(--text-muted)" fontSize={12} />
+                          <Tooltip 
+                             contentStyle={{ background: 'var(--bg-dark)', border: '1px solid var(--glass-border)', borderRadius: '1rem' }}
+                             itemStyle={{ fontSize: '0.85rem' }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: '0.85rem', paddingTop: '1rem' }} />
+                          <Bar name="Omzet (Rp)" dataKey="omzet" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+                          <Bar name="Pengunjung" dataKey="pengunjung" fill="var(--secondary)" radius={[4, 4, 0, 0]} />
+                       </BarChart>
+                    ) : (
+                       <LineChart data={reportStats.chartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                          <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
+                          <YAxis stroke="var(--text-muted)" fontSize={12} />
+                          <Tooltip 
+                             contentStyle={{ background: 'var(--bg-dark)', border: '1px solid var(--glass-border)', borderRadius: '1rem' }}
+                             itemStyle={{ fontSize: '0.85rem' }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: '0.85rem', paddingTop: '1rem' }} />
+                          <Line name="Omzet (Rp)" type="monotone" dataKey="omzet" stroke="var(--primary)" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                          <Line name="Pengunjung" type="monotone" dataKey="pengunjung" stroke="var(--secondary)" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                       </LineChart>
+                    )}
+                 </ResponsiveContainer>
+              </div>
+           </div>
+
+           <div className="glass-card" style={{ padding: '2rem' }}>
+
+              <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                 <UtensilsCrossed size={20} /> Menu Paling Laris
+              </h3>
+              <div style={{ overflowX: 'auto' }}>
+                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                       <tr>
+                          <th style={{ textAlign: 'left', padding: '1rem', color: 'var(--text-muted)' }}>Nama Menu</th>
+                          <th style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)' }}>Jumlah Terjual</th>
+                       </tr>
+                    </thead>
+                    <tbody>
+                       {reportStats.popularItems.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                             <td style={{ padding: '1rem', fontWeight: '600' }}>{item.name}</td>
+                             <td style={{ padding: '1rem', textAlign: 'center' }}>{item.qty} Porsi</td>
+                          </tr>
+                       ))}
+                       {reportStats.popularItems.length === 0 && (
+                         <tr><td colSpan="2" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Belum ada data penjualan.</td></tr>
+                       )}
+                    </tbody>
+                 </table>
+              </div>
+           </div>
+        </div>
+      ) : (
+        /* SETTINGS TAB */
+        <div className="animate-fade">
+           <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>Pengaturan Toko & Printer</h2>
+           
+           <form onSubmit={handleUpdateSettings} className="glass-card" style={{ padding: '2rem', maxWidth: '800px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>Profil Restoran</h3>
+                    <div>
+                       <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Nama Restoran</label>
+                       <input 
+                          type="text" 
+                          className="input-field" 
+                          value={settings.restaurantName}
+                          onChange={(e) => setSettings({...settings, restaurantName: e.target.value})}
+                       />
+                    </div>
+                    <div>
+                       <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Alamat</label>
+                       <textarea 
+                          className="input-field" 
+                          rows="3"
+                          value={settings.address}
+                          onChange={(e) => setSettings({...settings, address: e.target.value})}
+                       ></textarea>
+                    </div>
+                    <div>
+                       <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>URL Logo (Opsional)</label>
+                       <input 
+                          type="text" 
+                          className="input-field" 
+                          placeholder="https://..."
+                          value={settings.logoUrl}
+                          onChange={(e) => setSettings({...settings, logoUrl: e.target.value})}
+                       />
+                    </div>
+                 </div>
+
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>Konfigurasi Printer Thermal</h3>
+                    <div>
+                       <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Ukuran Kertas (mm)</label>
+                       <select 
+                          className="input-field"
+                          value={settings.printSize}
+                          onChange={(e) => setSettings({...settings, printSize: e.target.value})}
+                       >
+                          <option value="57mm">57mm (Standard)</option>
+                          <option value="58mm">58mm (Standard)</option>
+                          <option value="80mm">80mm (Besar)</option>
+                          <optgroup label="Spesifik (W x L)">
+                            <option value="57x30">57x30</option>
+                            <option value="57x37">57x37</option>
+                            <option value="57x38">57x38</option>
+                            <option value="57x40">57x40</option>
+                            <option value="58x40">58x40</option>
+                            <option value="58x50">58x50</option>
+                            <option value="80x60">80x60</option>
+                            <option value="80x80">80x80</option>
+                            <option value="80x180">80x180</option>
+                          </optgroup>
+                       </select>
+                    </div>
+                    <div>
+                       <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Orientasi Cetak</label>
+                       <div style={{ display: 'flex', gap: '1rem' }}>
+                          <button 
+                             type="button"
+                             onClick={() => setSettings({...settings, printOrientation: 'portrait'})}
+                             className={settings.printOrientation === 'portrait' ? 'btn-primary' : 'btn-secondary'}
+                             style={{ flex: 1, padding: '0.5rem' }}
+                          >Portrait</button>
+                          <button 
+                             type="button"
+                             onClick={() => setSettings({...settings, printOrientation: 'landscape'})}
+                             className={settings.printOrientation === 'landscape' ? 'btn-primary' : 'btn-secondary'}
+                             style={{ flex: 1, padding: '0.5rem' }}
+                          >Landscape</button>
+                       </div>
+                    </div>
+                 </div>
+              </div>
+
+              <button type="submit" className="btn-primary" style={{ marginTop: '2.5rem', width: '100%', maxWidth: '300px' }}>
+                 <Save size={18} /> Simpan Semua Pengaturan
+              </button>
+           </form>
+        </div>
       )}
+
+      {/* Hidden Print Section */}
+      <div id="print-section">
+          {orders.filter(o => o.id === printingOrderId).map(order => (
+             <div key={order.id} className={`print-order-content receipt-${settings.printSize.split('x')[0]}mm ${settings.printOrientation === 'landscape' ? 'receipt-landscape' : ''}`}>
+                <div style={{ textAlign: 'center', marginBottom: '15px' }}>
+                   {settings.logoUrl && <img src={settings.logoUrl} alt="Logo" style={{ width: '40px', marginBottom: '5px' }} />}
+                   <h2 style={{ margin: 0, fontSize: '16px' }}>{settings.restaurantName}</h2>
+                   <p style={{ margin: 0, fontSize: '10px' }}>{settings.address}</p>
+                </div>
+                <div style={{ borderTop: '1px dashed #ccc', borderBottom: '1px dashed #ccc', padding: '10px 0', marginBottom: '10px' }}>
+                   <p style={{ margin: 0 }}>No: {order.numericId}</p>
+                   <p style={{ margin: 0 }}>Meja: {tables.find(t => t.id === order.tableId)?.name || order.tableId}</p>
+                   <p style={{ margin: 0 }}>Tgl: {order.createdAt?.toDate().toLocaleString()}</p>
+                </div>
+                <div style={{ marginBottom: '10px' }}>
+                   {order.items.map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                         <span>{item.name} x{item.qty}</span>
+                         <span>{(item.price * item.qty).toLocaleString()}</span>
+                      </div>
+                   ))}
+                </div>
+                <div style={{ borderTop: '1px solid #000', paddingTop: '5px', textAlign: 'right', fontWeight: 'bold' }}>
+                   TOTAL: Rp {order.total.toLocaleString()}
+                </div>
+                <div style={{ marginTop: '20px', textAlign: 'center', fontStyle: 'italic', fontSize: '10px' }}>
+                   Terima Kasih Atas Kunjungan Anda
+                </div>
+             </div>
+          ))}
+      </div>
     </div>
   );
 }
