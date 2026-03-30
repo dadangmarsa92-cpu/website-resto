@@ -58,6 +58,26 @@ body {
   transform: translateY(0);
 }
 
+.btn-secondary {
+  background: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--glass-border);
+  padding: 0.8rem 1.5rem;
+  border-radius: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.btn-secondary:hover {
+  background: var(--glass);
+  border-color: var(--primary);
+}
+
 /* Page Layouts */
 .container {
   max-width: 1200px;
@@ -97,6 +117,66 @@ nav {
 
 .animate-fade {
   animation: fadeIn 0.5s ease forwards;
+}
+
+/* Modal and Inputs */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.input-field {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  padding: 0.8rem 1.2rem;
+  border-radius: 0.8rem;
+  color: white;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+.input-field:focus {
+  border-color: var(--primary);
+}
+
+.pin-input {
+  letter-spacing: 0.8rem;
+  font-size: 1.8rem;
+  text-align: center;
+  font-weight: bold;
+}
+
+/* Table Selection Grid */
+.table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1.5rem;
+  margin-top: 3rem;
+}
+
+.table-card {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.table-card:hover {
+  transform: scale(1.05);
+  border-color: var(--primary);
+  background: rgba(255, 107, 107, 0.1);
 }
 
 /* Responsive */
