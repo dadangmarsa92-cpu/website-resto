@@ -148,7 +148,23 @@ export default function LandingPage() {
       )}
 
       <footer style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)', fontSize: '0.8rem', opacity: 0.6 }}>
-        &copy; 2026 RestoModern. Sistem Pemesanan Pintar.
+        <div>&copy; 2026 RestoModern. Sistem Pemesanan Pintar.</div>
+        <div style={{ marginTop: '1rem' }}>
+          <button 
+            onClick={() => navigate('/admin')} 
+            style={{ 
+              background: 'transparent', 
+              border: '1px solid var(--glass-border)', 
+              color: 'inherit', 
+              padding: '0.4rem 0.8rem', 
+              borderRadius: '0.5rem', 
+              cursor: 'pointer',
+              fontSize: '0.7rem'
+            }}
+          >
+            Admin Panel
+          </button>
+        </div>
       </footer>
 
       {/* Customer Info Modal */}
