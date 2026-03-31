@@ -780,13 +780,13 @@ export default function AdminDashboard() {
                        ></textarea>
                     </div>
                     <div>
-                       <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>URL Logo (Opsional)</label>
+                       <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>WhatsApp Admin (Gunakan format 62..., misal: 6281234567890)</label>
                        <input 
                           type="text" 
                           className="input-field" 
-                          placeholder="https://..."
-                          value={settings.logoUrl}
-                          onChange={(e) => setSettings({...settings, logoUrl: e.target.value})}
+                          placeholder="628..."
+                          value={settings.adminPhone || ''}
+                          onChange={(e) => setSettings({...settings, adminPhone: e.target.value})}
                        />
                     </div>
                  </div>

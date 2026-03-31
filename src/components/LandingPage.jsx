@@ -54,8 +54,7 @@ export default function LandingPage() {
   const handleTableClick = (tableId) => {
     const table = tables.find(t => t.id === tableId);
     if (table && table.status === 'occupied') {
-      // If occupied, just go to the menu (maybe they want to add an order)
-      navigate(`/table/${tableId}`);
+      return; // Do nothing if occupied
     } else {
       setSelectedTableId(tableId);
       setIsCustomerModalOpen(true);
@@ -119,11 +118,13 @@ export default function LandingPage() {
               className="glass-card table-card"
               onClick={() => handleTableClick(table.id)}
               style={{ 
-                cursor: 'pointer', 
+                cursor: table.status === 'occupied' ? 'not-allowed' : 'pointer', 
                 padding: '2rem 1.5rem', 
                 textAlign: 'center',
                 transition: 'all 0.3s ease',
-                border: table.status === 'occupied' ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid var(--glass-border)'
+                border: table.status === 'occupied' ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid var(--glass-border)',
+                opacity: table.status === 'occupied' ? 0.6 : 1,
+                filter: table.status === 'occupied' ? 'grayscale(0.5)' : 'none'
               }}
             >
               <div className="table-number" style={{ fontSize: '1.5rem', fontWeight: '900', color: table.status === 'occupied' ? '#ef4444' : 'var(--primary)', marginBottom: '0.5rem', wordBreak: 'break-word' }}>
@@ -132,9 +133,13 @@ export default function LandingPage() {
               <div className="table-label" style={{ letterSpacing: '0.1rem', fontSize: '0.65rem', fontWeight: 'bold', textTransform: 'uppercase', opacity: 0.7 }}>
                 STATUS
               </div>
-              {table.status === 'occupied' && (
+              {table.status === 'occupied' ? (
                 <div style={{ marginTop: '0.8rem', fontSize: '0.65rem', padding: '0.2rem 0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: '0.5rem', display: 'inline-block' }}>
                   TERISI
+                </div>
+              ) : (
+                <div style={{ marginTop: '0.8rem', fontSize: '0.65rem', padding: '0.2rem 0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderRadius: '0.5rem', display: 'inline-block' }}>
+                  TERSEDIA, SILAHKAN PESAN
                 </div>
               )}
             </div>

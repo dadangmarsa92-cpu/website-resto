@@ -99,26 +99,56 @@ export default function CustomerPage() {
 
   const total = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
 
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [lastOrder, setLastOrder] = useState(null);
+
+  const sendWhatsAppMessage = (order) => {
+    if (!settings.adminPhone) {
+      alert("Nomor WhatsApp admin belum diatur.");
+      return;
+    }
+
+    const itemsList = order.items
+      .map(item => `- ${item.name} x${item.qty} (Rp ${(item.price * item.qty).toLocaleString()})`)
+      .join('%0A'); // %0A is newline
+
+    const message = `Halo Admin, saya ingin konfirmasi pesanan:%0A%0A` +
+      `📌 Meja: ${tableName || tableId}%0A` +
+      `🆔 No. Pesanan: ${order.numericId}%0A` +
+      `📋 Detail:%0A${itemsList}%0A%0A` +
+      `💰 Total: *Rp ${order.total.toLocaleString()}*%0A%0A` +
+      `Mohon diproses, terima kasih!`;
+
+    window.open(`https://wa.me/${settings.adminPhone}?text=${message}`, '_blank');
+  };
+
   const handlePlaceOrder = async () => {
     if (cart.length === 0) return;
     setIsOrdering(true);
     
     const numericId = Math.floor(100000 + Math.random() * 900000).toString();
 
+    const newOrder = {
+      tableId,
+      numericId,
+      items: cart,
+      total,
+      status: 'pending',
+      customerName,
+      customerPhone,
+      createdAt: new Date() // Temporary local date for modal
+    };
+
     try {
       await addDoc(collection(db, 'orders'), {
-        tableId,
-        numericId, // The "Barcode" ID
-        items: cart,
-        total,
-        status: 'pending',
-        customerName,
-        customerPhone,
+        ...newOrder,
         createdAt: serverTimestamp()
       });
+      setLastOrder(newOrder);
       setOrderId(numericId);
       localStorage.setItem('my_order_id', numericId);
       setCart([]);
+      setIsSuccessModalOpen(true);
     } catch (error) {
       console.error("Error adding document: ", error);
       alert("Gagal mengirim pesanan. Silakan coba lagi.");
@@ -174,6 +204,13 @@ export default function CustomerPage() {
             <Utensils size={24} style={{ color: '#10b981' }} />
             <p style={{ fontWeight: '600' }}>Status: <span style={{ textTransform: 'uppercase', color: '#10b981' }}>{activeOrder.status}</span></p>
           </div>
+          <button 
+            onClick={() => sendWhatsAppMessage(activeOrder)}
+            className="btn-secondary"
+            style={{ marginTop: '1rem', width: '100%', borderColor: '#25D366', color: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+          >
+            <Send size={18} /> Konfirmasi via WhatsApp
+          </button>
         </div>
       )}
 
@@ -192,13 +229,35 @@ export default function CustomerPage() {
                 <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Rp {item.price.toLocaleString()}</span>
               </div>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>{item.category}</p>
-              <button 
-                onClick={() => addToCart(item)}
-                className="btn-primary" 
-                style={{ width: '100%', padding: '0.6rem' }}
-              >
-                <Plus size={18} /> Tambah
-              </button>
+              {cart.find(i => i.id === item.id) ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button 
+                    onClick={() => removeFromCart(item.id)}
+                    className="btn-secondary" 
+                    style={{ flex: 1, padding: '0.6rem', display: 'flex', justifyContent: 'center' }}
+                  >
+                    <Minus size={18} />
+                  </button>
+                  <span style={{ width: '2rem', textAlign: 'center', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                    {cart.find(i => i.id === item.id).qty}
+                  </span>
+                  <button 
+                    onClick={() => addToCart(item)}
+                    className="btn-primary" 
+                    style={{ flex: 1, padding: '0.6rem', display: 'flex', justifyContent: 'center' }}
+                  >
+                    <Plus size={18} />
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => addToCart(item)}
+                  className="btn-primary" 
+                  style={{ width: '100%', padding: '0.6rem' }}
+                >
+                  <Plus size={18} /> Tambah
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -231,6 +290,64 @@ export default function CustomerPage() {
           </button>
         </div>
       )}
+
+      {/* SUCCESS MODAL */}
+      {isSuccessModalOpen && lastOrder && (
+        <div className="modal-overlay">
+          <div className="glass-card animate-fade" style={{ width: '100%', maxWidth: '450px', padding: '2rem', position: 'relative' }}>
+             <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                <CheckCircle size={64} style={{ color: '#10b981', marginBottom: '1rem' }} />
+                <h2 style={{ fontSize: '1.6rem', marginBottom: '0.5rem' }}>Pesanan Terkirim!</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Silakan konfirmasi lewat WhatsApp atau datang langsung ke kasir.</p>
+             </div>
+
+             <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '1rem', padding: '1.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px dashed var(--glass-border)', paddingBottom: '1rem' }}>
+                   <div>
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Kode Pesanan</span>
+                      <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--primary)' }}>{lastOrder.numericId}</span>
+                   </div>
+                   <div style={{ textAlign: 'right' }}>
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Meja</span>
+                      <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{tableName || lastOrder.tableId}</span>
+                   </div>
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                   {lastOrder.items.map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.3rem' }}>
+                         <span>{item.name} x{item.qty}</span>
+                         <span>Rp {(item.price * item.qty).toLocaleString()}</span>
+                      </div>
+                   ))}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: '800', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
+                   <span>TOTAL</span>
+                   <span>Rp {lastOrder.total.toLocaleString()}</span>
+                </div>
+             </div>
+
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <button 
+                  onClick={() => sendWhatsAppMessage(lastOrder)}
+                  className="btn-primary" 
+                  style={{ background: '#25D366', borderColor: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem' }}
+                >
+                  <Send size={18} /> Konfirmasi ke WhatsApp
+                </button>
+                <button 
+                  onClick={() => setIsSuccessModalOpen(false)} 
+                  className="btn-secondary" 
+                  style={{ width: '100%' }}
+                >
+                  Tutup
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+
       {/* TRACKING MODAL */}
       {isTrackingModalOpen && (
         <div className="modal-overlay">
