@@ -28,6 +28,8 @@ export default function CustomerPage() {
     restaurantName: 'RestoModern',
     logoUrl: ''
   });
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('Semua');
 
   // Fetch Table Name & Settings
   useEffect(() => {
@@ -59,7 +61,16 @@ export default function CustomerPage() {
       setMenuItems(items);
     });
 
-    return () => unsubscribe();
+    const qCats = query(collection(db, 'categories'), orderBy('name', 'asc'));
+    const unsubscribeCats = onSnapshot(qCats, (snapshot) => {
+      const catsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCategories([{ id: 'all', name: 'Semua' }, ...catsData]);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeCats();
+    };
   }, []);
 
   // Listen for order status updates
@@ -194,6 +205,39 @@ export default function CustomerPage() {
         <p style={{ color: 'var(--text-muted)' }}>Silakan pilih menu favorit Anda hari ini.</p>
       </header>
 
+      {/* CATEGORY BAR */}
+      <div className="category-bar" style={{ display: 'flex', gap: '0.8rem', overflowX: 'auto', paddingBottom: '1.5rem', marginBottom: '1rem', scrollbarWidth: 'none' }}>
+        {categories.map(cat => (
+          <button 
+            key={cat.id}
+            onClick={() => setSelectedCategory(cat.name)}
+            className={selectedCategory === cat.name ? 'btn-primary' : 'btn-secondary'}
+            style={{ 
+              padding: '0.6rem 1.2rem', 
+              borderRadius: '2rem', 
+              whiteSpace: 'nowrap', 
+              fontSize: '0.85rem',
+              transition: 'all 0.3s ease',
+              boxShadow: selectedCategory === cat.name ? '0 4px 15px rgba(255, 107, 107, 0.2)' : 'none'
+            }}
+          >
+            {cat.name}
+          </button>
+        ))}
+        {categories.length === 1 && (
+          ['Makanan', 'Minuman', 'Cemilan'].map(cat => (
+            <button 
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={selectedCategory === cat ? 'btn-primary' : 'btn-secondary'}
+              style={{ padding: '0.6rem 1.2rem', borderRadius: '2rem', whiteSpace: 'nowrap', fontSize: '0.85rem' }}
+            >
+              {cat}
+            </button>
+          ))
+        )}
+      </div>
+
       {activeOrder && (
         <div className="glass-card animate-fade" style={{ background: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.2)', padding: '1.5rem', marginBottom: '2.5rem', textAlign: 'center' }}>
           <div style={{ display: 'inline-block', padding: '0.5rem 1rem', background: 'var(--primary)', color: 'white', borderRadius: '0.5rem', fontSize: '1.2rem', fontWeight: 'bold', letterSpacing: '2px', marginBottom: '1rem' }}>
@@ -215,12 +259,12 @@ export default function CustomerPage() {
       )}
 
       <div className="grid-menu">
-        {menuItems.length === 0 ? (
+        {menuItems.filter(i => selectedCategory === 'Semua' || i.category === selectedCategory).length === 0 ? (
           <div className="glass-card" style={{ gridColumn: '1/-1', padding: '3rem', textAlign: 'center' }}>
             <AlertTriangle size={48} style={{ color: 'var(--accent)', marginBottom: '1rem', opacity: 0.5 }} />
-            <p style={{ color: 'var(--text-muted)' }}>Menu belum tersedia. Silakan hubungi pelayan.</p>
+            <p style={{ color: 'var(--text-muted)' }}>Menu kategori "{selectedCategory}" belum tersedia.</p>
           </div>
-        ) : menuItems.map(item => (
+        ) : menuItems.filter(i => selectedCategory === 'Semua' || i.category === selectedCategory).map(item => (
           <div key={item.id} className="glass-card" style={{ overflow: 'hidden' }}>
             <img src={item.image || 'https://images.unsplash.com/photo-1495195129352-aeb325a55b65?w=300'} alt={item.name} style={{ width: '100%', height: '180px', objectFit: 'cover' }} />
             <div style={{ padding: '1.2rem' }}>

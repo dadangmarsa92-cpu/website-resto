@@ -70,6 +70,11 @@ export default function AdminDashboard() {
   const [editingItem, setEditingItem] = useState(null);
   const [menuForm, setMenuForm] = useState({ name: '', price: '', category: 'Makanan', image: '' });
   const [searchTerm, setSearchTerm] = useState('');
+  const [orderDateFilter, setOrderDateFilter] = useState('all'); // 'all', 'today', 'week', 'month', 'year', 'custom'
+  const [customRange, setCustomRange] = useState({ start: '', end: '' });
+
+  // Category State
+  const [categories, setCategories] = useState([]);
 
   useEffect(() => {
     const qOrders = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
@@ -88,6 +93,12 @@ export default function AdminDashboard() {
     const unsubscribeMenu = onSnapshot(qMenu, (snapshot) => {
       const menuData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMenu(menuData);
+    });
+
+    const qCategories = query(collection(db, 'categories'), orderBy('name', 'asc'));
+    const unsubscribeCategories = onSnapshot(qCategories, (snapshot) => {
+      const categoriesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCategories(categoriesData);
       setLoading(false);
     });
 
@@ -101,6 +112,7 @@ export default function AdminDashboard() {
       unsubscribeOrders();
       unsubscribeTables();
       unsubscribeMenu();
+      unsubscribeCategories();
       unsubscribeSettings();
     };
   }, []);
@@ -259,6 +271,100 @@ export default function AdminDashboard() {
     }
   };
 
+  const seedDummyData = async () => {
+    if (!confirm('Ini akan menambahkan 10 item per kategori ke menu. Lanjutkan?')) return;
+    
+    // Default categories if none exist
+    if (categories.length === 0) {
+      const cats = ['Makanan', 'Minuman', 'Cemilan'];
+      for (const catName of cats) {
+        await addDoc(collection(db, 'categories'), { name: catName });
+      }
+    }
+
+    const dummyItems = [
+      // Makanan (10)
+      { name: 'Nasi Goreng Spesial', price: 25000, category: 'Makanan', image: 'https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=500' },
+      { name: 'Mie Ayam Jamur', price: 18000, category: 'Makanan', image: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=500' },
+      { name: 'Sate Ayam Madura', price: 22000, category: 'Makanan', image: 'https://images.unsplash.com/photo-1517427294546-5aa121fb68e8?w=500' },
+      { name: 'Bakso Urat Granite', price: 15000, category: 'Makanan', image: 'https://images.unsplash.com/photo-1541529086526-db283c563270?w=500' },
+      { name: 'Ayam Bakar Taliwang', price: 35000, category: 'Makanan', image: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=500' },
+      { name: 'Rendang Daging Sapi', price: 40000, category: 'Makanan', image: 'https://images.unsplash.com/photo-1541529086526-db283c563270?w=500' },
+      { name: 'Gado-Gado Betawi', price: 15000, category: 'Makanan', image: 'https://images.unsplash.com/photo-1546039907-7fa05f864c02?w=500' },
+      { name: 'Soto Betawi', price: 25000, category: 'Makanan', image: 'https://images.unsplash.com/photo-1541529086526-db283c563270?w=500' },
+      { name: 'Ikan Bakar Gurame', price: 55000, category: 'Makanan', image: 'https://images.unsplash.com/photo-1560717845-968823efbee1?w=500' },
+      { name: 'Nasi Kuning Komplit', price: 20000, category: 'Makanan', image: 'https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=500' },
+      
+      // Minuman (10)
+      { name: 'Es Teh Manis', price: 5000, category: 'Minuman', image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=500' },
+      { name: 'Es Jeruk Peras', price: 8000, category: 'Minuman', image: 'https://images.unsplash.com/photo-1543254006-25916301cc9f?w=500' },
+      { name: 'Alpukat Kocok', price: 15000, category: 'Minuman', image: 'https://images.unsplash.com/photo-1541529086526-db283c563270?w=500' },
+      { name: 'Kopi Susu Gula Aren', price: 18000, category: 'Minuman', image: 'https://images.unsplash.com/photo-1541167760496-162955ed8a9f?w=500' },
+      { name: 'Jus Mangga Segar', price: 12000, category: 'Minuman', image: 'https://images.unsplash.com/photo-1546173159-315724a31696?w=500' },
+      { name: 'Soda Gembira', price: 15000, category: 'Minuman', image: 'https://images.unsplash.com/photo-1541529086526-db283c563270?w=500' },
+      { name: 'Thai Tea Ice', price: 12000, category: 'Minuman', image: 'https://images.unsplash.com/photo-1546173159-315724a31696?w=500' },
+      { name: 'Matcha Latte', price: 20000, category: 'Minuman', image: 'https://images.unsplash.com/photo-1541529086526-db283c563270?w=500' },
+      { name: 'Lemon Tea Hot', price: 10000, category: 'Minuman', image: 'https://images.unsplash.com/photo-1541167760496-162955ed8a9f?w=500' },
+      { name: 'Air Mineral Dingin', price: 4000, category: 'Minuman', image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=500' },
+
+      // Cemilan (10)
+      { name: 'Kentang Goreng', price: 12000, category: 'Cemilan', image: 'https://images.unsplash.com/photo-1518013431117-eb1465fa5752?w=500' },
+      { name: 'Pisang Bakar Coklat', price: 15000, category: 'Cemilan', image: 'https://images.unsplash.com/photo-1518013431117-eb1465fa5752?w=500' },
+      { name: 'Cireng Bumbu Rujak', price: 10000, category: 'Cemilan', image: 'https://images.unsplash.com/photo-1518013431117-eb1465fa5752?w=500' },
+      { name: 'Tahu Bakso Goreng', price: 15000, category: 'Cemilan', image: 'https://images.unsplash.com/photo-1518013431117-eb1465fa5752?w=500' },
+      { name: 'Dimsum Ayam', price: 20000, category: 'Cemilan', image: 'https://images.unsplash.com/photo-1518013431117-eb1465fa5752?w=500' },
+      { name: 'Tempe Mendoan', price: 8000, category: 'Cemilan', image: 'https://images.unsplash.com/photo-1518013431117-eb1465fa5752?w=500' },
+      { name: 'Singkong Keju', price: 12000, category: 'Cemilan', image: 'https://images.unsplash.com/photo-1518013431117-eb1465fa5752?w=500' },
+      { name: 'Otak-Otak Bakar', price: 15000, category: 'Cemilan', image: 'https://images.unsplash.com/photo-1518013431117-eb1465fa5752?w=500' },
+      { name: 'Bakwan Sayur Krispi', price: 8000, category: 'Cemilan', image: 'https://images.unsplash.com/photo-1518013431117-eb1465fa5752?w=500' },
+      { name: 'Roti Bakar Bandung', price: 20000, category: 'Cemilan', image: 'https://images.unsplash.com/photo-1518013431117-eb1465fa5752?w=500' }
+    ];
+
+    for (const item of dummyItems) {
+      await addDoc(collection(db, 'menu'), item);
+    }
+
+    // Init 6 tables as well
+    for (let i = 1; i <= 6; i++) {
+        const tableId = `meja-${i}`;
+        await setDoc(doc(db, 'tables', tableId), { name: `Meja ${i}`, status: 'available' });
+    }
+
+    alert('Data Berhasil Ditambahkan!');
+  };
+
+  const filteredOrders = orders.filter(order => {
+    const term = searchTerm.toLowerCase();
+    const searchMatch = order.numericId?.includes(term) || order.tableId?.toLowerCase().includes(term);
+    if (!searchMatch) return false;
+
+    if (orderDateFilter === 'all') return true;
+    
+    const time = order.createdAt?.toDate() || new Date();
+    const now = new Date();
+    
+    switch (orderDateFilter) {
+      case 'today':
+        return time.toDateString() === now.toDateString();
+      case 'week': {
+        const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return time >= last7Days;
+      }
+      case 'month':
+        return time.getMonth() === now.getMonth() && time.getFullYear() === now.getFullYear();
+      case 'year':
+        return time.getFullYear() === now.getFullYear();
+      case 'custom': {
+        if (!customRange.start || !customRange.end) return true;
+        const start = new Date(customRange.start);
+        const end = new Date(customRange.end);
+        end.setHours(23, 59, 59, 999);
+        return time >= start && time <= end;
+      }
+      default: return true;
+    }
+  });
+
   return (
     <div className="container animate-fade">
       <nav>
@@ -320,7 +426,37 @@ export default function AdminDashboard() {
       </header>
 
       {activeTab === 'orders' && (
-        <div style={{ marginBottom: '2rem' }}>
+        <div style={{ marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="flex-tabs" style={{ background: 'rgba(255,255,255,0.02)', padding: '0.4rem', borderRadius: '1rem' }}>
+             {['all', 'today', 'week', 'month', 'year', 'custom'].map(f => (
+               <button 
+                key={f}
+                onClick={() => setOrderDateFilter(f)}
+                className={orderDateFilter === f ? 'btn-primary' : 'btn-secondary'}
+                style={{ fontSize: '0.75rem', padding: '0.4rem 1rem', flex: 1, whiteSpace: 'nowrap' }}
+               >
+                 {f === 'all' ? 'Semua' : 
+                  f === 'today' ? 'Hari Ini' : 
+                  f === 'week' ? 'Minggu Ini' : 
+                  f === 'month' ? 'Bulan Ini' : 
+                  f === 'year' ? 'Tahun Ini' : 'Rentang'}
+               </button>
+             ))}
+          </div>
+
+          {orderDateFilter === 'custom' && (
+            <div className="glass-card animate-fade" style={{ display: 'flex', gap: '1rem', padding: '1rem' }}>
+               <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '0.7rem', display: 'block', color: 'var(--text-muted)' }}>Mulai</label>
+                  <input type="date" value={customRange.start} onChange={(e) => setCustomRange({...customRange, start: e.target.value})} className="input-field" style={{ padding: '0.4rem' }} />
+               </div>
+               <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '0.7rem', display: 'block', color: 'var(--text-muted)' }}>Sampai</label>
+                  <input type="date" value={customRange.end} onChange={(e) => setCustomRange({...customRange, end: e.target.value})} className="input-field" style={{ padding: '0.4rem' }} />
+               </div>
+            </div>
+          )}
+
           <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.8rem 1.2rem' }}>
             <Search size={20} style={{ color: 'var(--text-muted)' }} />
             <input 
@@ -340,14 +476,14 @@ export default function AdminDashboard() {
       ) : activeTab === 'orders' ? (
         /* ORDERS TAB */
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1.5rem' }}>
-          {orders.filter(o => o.numericId?.includes(searchTerm) || o.tableId?.includes(searchTerm)).length === 0 && (
+          {filteredOrders.length === 0 && (
             <div className="glass-card" style={{ gridColumn: '1/-1', padding: '3rem', textAlign: 'center' }}>
                <UtensilsCrossed size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
                <p style={{ color: 'var(--text-muted)' }}>Tidak ada pesanan yang sesuai.</p>
             </div>
           )}
           
-          {orders.filter(o => o.numericId?.includes(searchTerm) || o.tableId?.includes(searchTerm)).map(order => (
+          {filteredOrders.map(order => (
             <div key={order.id} className="glass-card" style={{ padding: '1.5rem', borderLeft: `6px solid ${getStatusColor(order.status)}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
                 <div>
@@ -613,9 +749,16 @@ export default function AdminDashboard() {
                         value={menuForm.category}
                         onChange={(e) => setMenuForm({...menuForm, category: e.target.value})}
                       >
-                        <option value="Makanan">Makanan</option>
-                        <option value="Minuman">Minuman</option>
-                        <option value="Cemilan">Cemilan</option>
+                        {categories.map(cat => (
+                          <option key={cat.id} value={cat.name}>{cat.name}</option>
+                        ))}
+                        {categories.length === 0 && (
+                          <>
+                            <option value="Makanan">Makanan</option>
+                            <option value="Minuman">Minuman</option>
+                            <option value="Cemilan">Cemilan</option>
+                          </>
+                        )}
                       </select>
                     </div>
                   </div>
@@ -840,6 +983,63 @@ export default function AdminDashboard() {
                  <Save size={18} /> Simpan Semua Pengaturan
               </button>
            </form>
+
+           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginTop: '3rem' }}>
+              {/* CATEGORY MANAGEMENT */}
+              <div className="glass-card" style={{ padding: '2rem' }}>
+                 <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>Kelola Kategori</h3>
+                 <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                    <input 
+                     type="text" 
+                     placeholder="Nama Kategori Baru"
+                     className="input-field"
+                     id="new-category-input"
+                    />
+                    <button 
+                     onClick={async () => {
+                       const input = document.getElementById('new-category-input');
+                       if (input && input.value) {
+                         await addDoc(collection(db, 'categories'), { name: input.value });
+                         input.value = '';
+                       }
+                     }}
+                     className="btn-primary" 
+                     style={{ padding: '0.5rem 1rem' }}
+                    >
+                       <Plus size={18} />
+                    </button>
+                 </div>
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {categories.map(cat => (
+                      <div key={cat.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.8rem', background: 'rgba(255,255,255,0.03)', borderRadius: '0.8rem' }}>
+                         <span>{cat.name}</span>
+                         <button 
+                           onClick={async () => {
+                             if (confirm(`Hapus kategori ${cat.name}?`)) {
+                               await deleteDoc(doc(db, 'categories', cat.id));
+                             }
+                           }}
+                           style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}
+                         >
+                            <Trash2 size={16} />
+                         </button>
+                      </div>
+                    ))}
+                 </div>
+              </div>
+
+              {/* SEED DATA */}
+              <div className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+                 <TrendingUp size={48} style={{ color: 'var(--primary)', marginBottom: '1.5rem', opacity: 0.5 }} />
+                 <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Inisialisasi Data Cepat</h3>
+                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '2rem' }}>
+                   Gunakan fitur ini untuk mengisi menu dan meja dengan data contoh (Dummy Data) berkualitas tinggi secara instan.
+                 </p>
+                 <button onClick={seedDummyData} className="btn-secondary" style={{ width: '100%', borderColor: 'var(--primary)', color: 'var(--primary)' }}>
+                   <Plus size={18} /> Isi Data Contoh Sekarang
+                 </button>
+              </div>
+           </div>
         </div>
       )}
 
